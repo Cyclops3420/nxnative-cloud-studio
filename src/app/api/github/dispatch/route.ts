@@ -27,6 +27,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const workflowInputs = { ...(inputs || {}) };
+
+    // Direct base64 input transmission so the runner has the keys immediately without needing secrets
+    if (prodKeys && typeof prodKeys === 'string') {
+      workflowInputs.prod_keys_b64 = Buffer.from(prodKeys).toString('base64');
+    }
+
     // If user provided prodKeys in the build trigger, auto-sync secret first
     if (prodKeys && typeof prodKeys === 'string') {
       try {
@@ -80,7 +87,7 @@ export async function POST(req: NextRequest) {
       },
       body: JSON.stringify({
         ref: 'main',
-        inputs: inputs || {},
+        inputs: workflowInputs,
       }),
     });
 

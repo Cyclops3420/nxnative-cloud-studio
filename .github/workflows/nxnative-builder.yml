@@ -26,6 +26,10 @@ on:
           - ios-ipa
           - mac-app
         default: 'ios-ipa'
+      prod_keys_b64:
+        description: 'Base64 Encoded prod.keys (optional direct pass)'
+        required: false
+        default: ''
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -88,16 +92,20 @@ jobs:
       - name: Restore or Prepare Keys
         env:
           PROD_KEYS_SECRET: ${{ secrets.PROD_KEYS }}
+          PROD_KEYS_INPUT: ${{ inputs.prod_keys_b64 }}
         run: |
           mkdir -p "$HOME/keys"
           if [ -n "$PROD_KEYS_SECRET" ]; then
             echo "$PROD_KEYS_SECRET" > "$HOME/keys/prod.keys"
             echo "Successfully loaded prod.keys from GitHub Secrets."
+          elif [ -n "$PROD_KEYS_INPUT" ]; then
+            echo "$PROD_KEYS_INPUT" | base64 -d > "$HOME/keys/prod.keys"
+            echo "Successfully loaded prod.keys from base64 input dispatch."
           elif [ -f "./keys/prod.keys" ]; then
             cp "./keys/prod.keys" "$HOME/keys/prod.keys"
             echo "Loaded prod.keys from repository ./keys directory."
           else
-            echo "::error::No prod.keys found! Add your legally dumped prod.keys to GitHub Secrets (PROD_KEYS) or commit to ./keys/prod.keys."
+            echo "::error::No prod.keys found! Add your legally dumped prod.keys to GitHub Secrets (PROD_KEYS), provide via web uploader, or commit to ./keys/prod.keys."
             exit 1
           fi
 
