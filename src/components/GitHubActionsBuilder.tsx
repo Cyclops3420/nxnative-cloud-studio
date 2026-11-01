@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Play, CheckCircle2, AlertCircle, Loader2, Download, ExternalLink, HelpCircle, Key, Server, Terminal, Copy, Check } from 'lucide-react';
+import { Play, CheckCircle2, AlertCircle, Loader2, Download, ExternalLink, HelpCircle, Server, Terminal, Lock } from 'lucide-react';
 import { BuildConfig } from './BuildConfiguration';
 import { KeysValidationResult } from '@/lib/keys-parser';
 import { SwitchFileMetadata } from '@/lib/switch-parser';
@@ -19,10 +19,9 @@ export const GitHubActionsBuilder: React.FC<GitHubActionsBuilderProps> = ({
   isLegalAccepted,
   onOpenLegal,
 }) => {
-  const [ghToken, setGhToken] = useState('');
-  const [ghOwner, setGhOwner] = useState('');
-  const [ghRepo, setGhRepo] = useState('');
-  const [showTokenHelp, setShowTokenHelp] = useState(false);
+  // Pre-linked to user's repository
+  const repoOwner = 'Cyclops3420';
+  const repoName = 'nxnative-cloud-studio';
 
   // Build execution state
   const [isDispatching, setIsDispatching] = useState(false);
@@ -41,20 +40,13 @@ export const GitHubActionsBuilder: React.FC<GitHubActionsBuilderProps> = ({
 
   // Poll workflow status
   useEffect(() => {
-    if (!activeRunId || !ghToken || !ghOwner || !ghRepo || runStatus === 'completed' || isSimulating) {
+    if (!activeRunId || runStatus === 'completed' || isSimulating) {
       return;
     }
 
     const interval = setInterval(async () => {
       try {
-        const res = await fetch(
-          `/api/github/status?owner=${encodeURIComponent(ghOwner)}&repo=${encodeURIComponent(ghRepo)}&runId=${activeRunId}`,
-          {
-            headers: {
-              Authorization: `Bearer ${ghToken}`,
-            },
-          }
-        );
+        const res = await fetch(`/api/github/status?runId=${activeRunId}`);
         const data = await res.json();
         if (data.found && data.run) {
           setRunStatus(data.run.status);
@@ -70,16 +62,11 @@ export const GitHubActionsBuilder: React.FC<GitHubActionsBuilderProps> = ({
     }, 6000);
 
     return () => clearInterval(interval);
-  }, [activeRunId, ghToken, ghOwner, ghRepo, runStatus, isSimulating]);
+  }, [activeRunId, runStatus, isSimulating]);
 
   const handleDispatch = async () => {
     if (!isLegalAccepted) {
       onOpenLegal();
-      return;
-    }
-
-    if (!ghToken || !ghOwner || !ghRepo) {
-      setDispatchError('Please provide your GitHub Token, Owner/Username, and Repository Name.');
       return;
     }
 
@@ -92,10 +79,6 @@ export const GitHubActionsBuilder: React.FC<GitHubActionsBuilderProps> = ({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          token: ghToken,
-          owner: ghOwner,
-          repo: ghRepo,
-          workflowFile: 'nxnative-builder.yml',
           inputs: {
             app_name: config.appName,
             bundle_id: config.bundleId,
@@ -111,18 +94,13 @@ export const GitHubActionsBuilder: React.FC<GitHubActionsBuilderProps> = ({
         throw new Error(data.error || 'Failed to dispatch GitHub workflow');
       }
 
-      setDispatchSuccess('Build job successfully dispatched to GitHub Actions macOS Apple Silicon runner!');
+      setDispatchSuccess(`Build successfully dispatched to ${repoOwner}/${repoName} macOS Apple Silicon runner!`);
       setRunStatus('queued');
 
       // Fetch the newly triggered run after a short delay
       setTimeout(async () => {
         try {
-          const statusRes = await fetch(
-            `/api/github/status?owner=${encodeURIComponent(ghOwner)}&repo=${encodeURIComponent(ghRepo)}`,
-            {
-              headers: { Authorization: `Bearer ${ghToken}` },
-            }
-          );
+          const statusRes = await fetch(`/api/github/status`);
           const statusData = await statusRes.json();
           if (statusData.found && statusData.run) {
             setActiveRunId(statusData.run.id);
@@ -132,7 +110,7 @@ export const GitHubActionsBuilder: React.FC<GitHubActionsBuilderProps> = ({
         } catch (e) {
           console.warn('Failed initial run lookup:', e);
         }
-      }, 3000);
+      }, 3500);
 
     } catch (err: any) {
       setDispatchError(err.message || 'An error occurred while connecting to GitHub.');
@@ -141,7 +119,7 @@ export const GitHubActionsBuilder: React.FC<GitHubActionsBuilderProps> = ({
     }
   };
 
-  // Demo simulator for testing without needing a real GitHub account right now
+  // Demo simulator for testing
   const handleSimulateBuild = () => {
     if (!isLegalAccepted) {
       onOpenLegal();
@@ -197,85 +175,28 @@ export const GitHubActionsBuilder: React.FC<GitHubActionsBuilderProps> = ({
               Cloud Compiler (GitHub Actions macOS Runner)
             </h3>
             <span className="px-2 py-0.5 rounded text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
-              No Mac Required
+              Pre-Linked
             </span>
           </div>
           <p className="text-xs text-gray-400 mt-1">
-            Builds on free GitHub Actions macOS Apple Silicon runners via <strong>seedds/nxnative</strong> and <strong>adro0303/ipa-builder</strong> workflows.
+            Directly connected to repository: <a href={`https://github.com/${repoOwner}/${repoName}`} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline font-mono">{repoOwner}/{repoName}</a>
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={() => setShowTokenHelp(!showTokenHelp)}
-          className="flex items-center gap-1.5 text-xs text-blue-400 hover:text-blue-300 transition-colors"
-        >
-          <HelpCircle className="w-4 h-4" />
-          <span>{showTokenHelp ? 'Hide Setup Guide' : 'Setup Guide (2 Min)'}</span>
-        </button>
-      </div>
-
-      {/* Setup Guide Accordion */}
-      {showTokenHelp && (
-        <div className="p-4 rounded-xl bg-[#0f111a] border border-gray-800 space-y-3 text-xs text-gray-300 animate-in fade-in duration-150">
-          <p className="font-semibold text-white">Quick 2-Minute Repository Setup:</p>
-          <ol className="list-decimal list-inside space-y-2 text-gray-400">
-            <li>
-              <strong className="text-gray-200">Create a GitHub repository</strong> (can be private) on{' '}
-              <a href="https://github.com/new" target="_blank" rel="noopener noreferrer" className="text-blue-400 underline">
-                github.com/new
-              </a>.
-            </li>
-            <li>
-              Add your legally dumped <strong className="text-gray-200">prod.keys</strong> as a secret:
-              Go to <span className="font-mono text-gray-300">Settings → Secrets and variables → Actions → New repository secret</span>, named <span className="font-mono text-red-400">PROD_KEYS</span>.
-            </li>
-            <li>
-              Commit the workflow file to your repository at: <span className="font-mono text-blue-300">.github/workflows/nxnative-builder.yml</span> (use the template tab below!).
-            </li>
-            <li>
-              Create a <a href="https://github.com/settings/tokens" target="_blank" rel="noopener noreferrer" className="text-blue-400 underline">Personal Access Token (classic)</a> with <span className="font-mono text-emerald-400">repo</span> and <span className="font-mono text-emerald-400">workflow</span> permissions.
-            </li>
-          </ol>
-        </div>
-      )}
-
-      {/* Input credentials */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div className="space-y-1">
-          <label className="text-xs font-medium text-gray-300 flex items-center gap-1">
-            <Key className="w-3.5 h-3.5 text-amber-400" />
-            GitHub Token (PAT)
-          </label>
-          <input
-            type="password"
-            value={ghToken}
-            onChange={(e) => setGhToken(e.target.value)}
-            placeholder="ghp_xxxxxxxxxxxx"
-            className="w-full px-3 py-2 text-xs rounded-xl bg-[#0f111a] border border-gray-700/80 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 font-mono"
-          />
-        </div>
-
-        <div className="space-y-1">
-          <label className="text-xs font-medium text-gray-300">GitHub Owner / Username</label>
-          <input
-            type="text"
-            value={ghOwner}
-            onChange={(e) => setGhOwner(e.target.value)}
-            placeholder="e.g. your-username"
-            className="w-full px-3 py-2 text-xs rounded-xl bg-[#0f111a] border border-gray-700/80 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
-          />
-        </div>
-
-        <div className="space-y-1">
-          <label className="text-xs font-medium text-gray-300">Repository Name</label>
-          <input
-            type="text"
-            value={ghRepo}
-            onChange={(e) => setGhRepo(e.target.value)}
-            placeholder="e.g. nxnative-builds"
-            className="w-full px-3 py-2 text-xs rounded-xl bg-[#0f111a] border border-gray-700/80 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
-          />
+        <div className="flex items-center gap-2">
+          <span className="flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs bg-gray-900 border border-gray-800 text-gray-300">
+            <Lock className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Password Protected</span>
+          </span>
+          <a
+            href={`https://github.com/${repoOwner}/${repoName}/actions`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 transition-colors"
+          >
+            <span>GitHub Actions Hub</span>
+            <ExternalLink className="w-3.5 h-3.5" />
+          </a>
         </div>
       </div>
 
@@ -296,7 +217,7 @@ export const GitHubActionsBuilder: React.FC<GitHubActionsBuilderProps> = ({
           ) : (
             <Play className="w-4 h-4 fill-current" />
           )}
-          <span>{isDispatching ? 'Dispatching to GitHub...' : 'Trigger Cloud Build (GitHub Actions)'}</span>
+          <span>{isDispatching ? 'Dispatching to GitHub...' : `Trigger Cloud Build on ${repoOwner}/${repoName}`}</span>
         </button>
 
         <button

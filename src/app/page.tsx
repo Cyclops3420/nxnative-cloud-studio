@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Gamepad2,
   Cpu,
@@ -16,6 +16,7 @@ import {
   Apple,
   FileCode,
   Smartphone,
+  Lock,
 } from 'lucide-react';
 
 import { Navbar } from '@/components/Navbar';
@@ -28,11 +29,15 @@ import { HomebrewInstantBuilder } from '@/components/HomebrewInstantBuilder';
 import { LocalTerminalHelper } from '@/components/LocalTerminalHelper';
 import { WorkflowTemplateViewer } from '@/components/WorkflowTemplateViewer';
 import { SideloadingGuide } from '@/components/SideloadingGuide';
+import { PasswordGate } from '@/components/PasswordGate';
 
 import { SwitchFileMetadata } from '@/lib/switch-parser';
 import { KeysValidationResult } from '@/lib/keys-parser';
 
 export default function HomePage() {
+  // Password protection state
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+
   // Legal acknowledgement state
   const [isLegalModalOpen, setIsLegalModalOpen] = useState(false);
   const [isLegalAccepted, setIsLegalAccepted] = useState(false);
@@ -55,6 +60,16 @@ export default function HomePage() {
   // Active builder tab
   const [activeEngineTab, setActiveEngineTab] = useState<'cloud' | 'homebrew' | 'local' | 'workflow'>('cloud');
 
+  // Check auth cookie on mount
+  useEffect(() => {
+    fetch('/api/auth')
+      .then((res) => res.json())
+      .then((data) => {
+        setIsAuthenticated(!!data.authenticated);
+      })
+      .catch(() => setIsAuthenticated(false));
+  }, []);
+
   const handleAddFiles = (newFiles: { file: File; meta: SwitchFileMetadata }[]) => {
     setUploadedFiles((prev) => [...prev, ...newFiles]);
   };
@@ -75,6 +90,20 @@ export default function HomePage() {
   const handleConfigChange = (updated: Partial<BuildConfig>) => {
     setBuildConfig((prev) => ({ ...prev, ...updated }));
   };
+
+  // While checking auth status
+  if (isAuthenticated === null) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#0b0d13] text-gray-400 text-xs">
+        Loading NXNative Studio...
+      </div>
+    );
+  }
+
+  // If not authenticated, show password gate
+  if (!isAuthenticated) {
+    return <PasswordGate onAuthenticated={() => setIsAuthenticated(true)} />;
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-[#0b0d13] text-gray-100">
@@ -102,7 +131,7 @@ export default function HomePage() {
           <div className="relative z-10 max-w-3xl space-y-4">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-semibold">
               <Zap className="w-3.5 h-3.5 fill-current" />
-              <span>Native ARM64 Translation • Not an Emulated CPU</span>
+              <span>Native ARM64 Translation • Linked to Cyclops3420/nxnative-cloud-studio</span>
             </div>
 
             <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight text-white leading-tight">
@@ -146,12 +175,12 @@ export default function HomePage() {
                 <p className="font-bold text-white mt-0.5">NVN → Apple Metal</p>
               </div>
               <div className="p-3 rounded-xl bg-gray-900/60 border border-gray-800">
-                <p className="text-gray-400 text-[11px]">Cloud Build</p>
-                <p className="font-bold text-white mt-0.5">macOS M2 Runners</p>
+                <p className="text-gray-400 text-[11px]">Cloud Runner</p>
+                <p className="font-bold text-white mt-0.5">Cyclops3420 macOS M2</p>
               </div>
               <div className="p-3 rounded-xl bg-gray-900/60 border border-gray-800">
-                <p className="text-gray-400 text-[11px]">Output</p>
-                <p className="font-bold text-white mt-0.5">Unsigned .IPA / .App</p>
+                <p className="text-gray-400 text-[11px]">Security</p>
+                <p className="font-bold text-white mt-0.5">Password Gated</p>
               </div>
             </div>
           </div>
@@ -223,7 +252,7 @@ export default function HomePage() {
                 }`}
               >
                 <Server className="w-3.5 h-3.5" />
-                <span>GitHub Actions Cloud (Recommended)</span>
+                <span>GitHub Actions Cloud (Cyclops3420)</span>
               </button>
 
               <button
@@ -312,7 +341,7 @@ export default function HomePage() {
             <Gamepad2 className="w-4 h-4 text-red-500" />
             <span className="font-semibold text-gray-300">NXNative Cloud Studio</span>
             <span>•</span>
-            <span>Vercel App Formatted Architecture</span>
+            <span>Private Deployment for Cyclops3420</span>
           </div>
 
           <div className="flex items-center gap-4">
@@ -323,20 +352,20 @@ export default function HomePage() {
               Legal Disclaimer & Fair Use
             </button>
             <a
+              href="https://github.com/Cyclops3420/nxnative-cloud-studio"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-gray-300"
+            >
+              GitHub Repo
+            </a>
+            <a
               href="https://github.com/seedds/nxnative"
               target="_blank"
               rel="noopener noreferrer"
               className="hover:text-gray-300"
             >
-              NXNative GitHub
-            </a>
-            <a
-              href="https://github.com/adro0303/ipa-builder"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hover:text-gray-300"
-            >
-              IPA Builder GitHub
+              seedds/nxnative
             </a>
           </div>
         </div>

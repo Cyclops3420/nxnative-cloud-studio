@@ -2,16 +2,25 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(req: NextRequest) {
   try {
+    // Verify password protection
+    const authCookie = req.cookies.get('nx_auth');
+    if (authCookie?.value !== 'authenticated') {
+      return NextResponse.json(
+        { error: 'Unauthorized: Access password required.' },
+        { status: 401 }
+      );
+    }
+
     const { searchParams } = new URL(req.url);
-    const token = req.headers.get('authorization')?.replace(/^Bearer\s+/i, '') || searchParams.get('token');
-    const owner = searchParams.get('owner');
-    const repo = searchParams.get('repo');
+    const token = process.env.GITHUB_PAT || process.env.GITHUB_TOKEN || searchParams.get('token');
+    const owner = process.env.GITHUB_OWNER || searchParams.get('owner') || 'Cyclops3420';
+    const repo = process.env.GITHUB_REPO || searchParams.get('repo') || 'nxnative-cloud-studio';
     const runId = searchParams.get('runId');
 
-    if (!token || !owner || !repo) {
+    if (!token) {
       return NextResponse.json(
-        { error: 'token, owner, and repo query parameters are required' },
-        { status: 400 }
+        { error: 'GitHub Token is missing. Please set GITHUB_PAT in your Vercel project environment variables.' },
+        { status: 500 }
       );
     }
 
@@ -25,14 +34,12 @@ export async function GET(req: NextRequest) {
     let targetRun: any = null;
 
     if (runId) {
-      // Fetch specific run
       const runRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/actions/runs/${runId}`, { headers });
       if (!runRes.ok) {
         return NextResponse.json({ error: `Failed to fetch run ${runId}` }, { status: runRes.status });
       }
       targetRun = await runRes.json();
     } else {
-      // Fetch latest workflow runs
       const runsRes = await fetch(
         `https://api.github.com/repos/${owner}/${repo}/actions/runs?per_page=5&event=workflow_dispatch`,
         { headers }
@@ -70,8 +77,8 @@ export async function GET(req: NextRequest) {
       run: {
         id: targetRun.id,
         name: targetRun.name,
-        status: targetRun.status, // queued, in_progress, completed
-        conclusion: targetRun.conclusion, // success, failure, cancelled
+        status: targetRun.status,
+        conclusion: targetRun.conclusion,
         html_url: targetRun.html_url,
         created_at: targetRun.created_at,
         updated_at: targetRun.updated_at,

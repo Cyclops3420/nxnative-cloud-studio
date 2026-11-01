@@ -2,13 +2,28 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    const { token, owner, repo, workflowFile = 'nxnative-builder.yml', inputs } = body;
-
-    if (!token || !owner || !repo) {
+    // Verify password protection
+    const authCookie = req.cookies.get('nx_auth');
+    if (authCookie?.value !== 'authenticated') {
       return NextResponse.json(
-        { error: 'GitHub Personal Access Token, Owner/Username, and Repository Name are required.' },
-        { status: 400 }
+        { error: 'Unauthorized: Access password required.' },
+        { status: 401 }
+      );
+    }
+
+    const body = await req.json();
+    const { inputs } = body;
+
+    // Use environment variables or fallback to request body
+    const token = process.env.GITHUB_PAT || process.env.GITHUB_TOKEN || body.token;
+    const owner = process.env.GITHUB_OWNER || body.owner || 'Cyclops3420';
+    const repo = process.env.GITHUB_REPO || body.repo || 'nxnative-cloud-studio';
+    const workflowFile = body.workflowFile || 'nxnative-builder.yml';
+
+    if (!token) {
+      return NextResponse.json(
+        { error: 'GitHub Token is missing. Please set GITHUB_PAT in your Vercel project environment variables.' },
+        { status: 500 }
       );
     }
 
@@ -37,14 +52,14 @@ export async function POST(req: NextRequest) {
         const errorJson = JSON.parse(errorText);
         parsedError = errorJson.message || errorText;
       } catch {
-        // use raw error text
+        // use raw
       }
 
       return NextResponse.json(
         {
           error: `GitHub API error (${ghResponse.status}): ${parsedError}`,
           hint: ghResponse.status === 404
-            ? `Make sure repo '${owner}/${repo}' exists, the token has 'workflow' & 'repo' scopes, and '.github/workflows/${workflowFile}' is committed to the 'main' branch.`
+            ? `Repository '${owner}/${repo}' or workflow '.github/workflows/${workflowFile}' was not found on 'main'.`
             : undefined,
         },
         { status: ghResponse.status }
@@ -53,7 +68,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: 'Workflow successfully triggered on GitHub Actions runner!',
+      message: `Build successfully dispatched to ${owner}/${repo} macOS Apple Silicon runner!`,
       repo: `${owner}/${repo}`,
       workflow: workflowFile,
       timestamp: new Date().toISOString(),
