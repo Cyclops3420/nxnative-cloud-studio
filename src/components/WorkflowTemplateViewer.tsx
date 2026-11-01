@@ -18,7 +18,7 @@ export const WorkflowTemplateViewer: React.FC<WorkflowTemplateViewerProps> = ({ 
     showFps: config.showFps,
     platform: config.platform,
     nxnativeBranch: 'main',
-    runnerOs: 'macos-14',
+    runnerOs: 'macos-15',
   });
 
   const handleCopy = () => {

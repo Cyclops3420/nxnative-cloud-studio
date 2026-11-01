@@ -133,7 +133,7 @@ export const GitHubActionsBuilder: React.FC<GitHubActionsBuilderProps> = ({
     setSimulationLogs(['[NXNative Cloud] Initializing simulation pipeline...']);
 
     const steps = [
-      { pct: 15, msg: 'Provisioning GitHub Actions macos-14 runner (Apple M2 Silicon, 14GB RAM)...' },
+      { pct: 15, msg: 'Provisioning GitHub Actions macos-15 runner (Apple M-series Silicon, 14GB RAM)...' },
       { pct: 30, msg: 'Installed MetalToolchain, xcodegen, dotnet-sdk, and glslang.' },
       { pct: 50, msg: 'Setting up Python 3.12: lz4, capstone 5.0, fonttools, nsz, zbic ready.' },
       { pct: 65, msg: 'Loaded prod.keys: Verified header_key & 18 master keys.' },

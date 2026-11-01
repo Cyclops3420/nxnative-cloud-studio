@@ -6,7 +6,7 @@ export interface WorkflowOptions {
   showFps: boolean;
   platform: 'ios-ipa' | 'mac-app';
   nxnativeBranch: string;
-  runnerOs: 'macos-14' | 'macos-15';
+  runnerOs: 'macos-15' | 'macos-14';
 }
 
 export function generateNxnativeWorkflow(options: WorkflowOptions): string {
@@ -17,7 +17,7 @@ export function generateNxnativeWorkflow(options: WorkflowOptions): string {
     showFps,
     platform,
     nxnativeBranch = 'main',
-    runnerOs = 'macos-14',
+    runnerOs = 'macos-15',
   } = options;
 
   return `name: NXNative Cloud IPA Builder

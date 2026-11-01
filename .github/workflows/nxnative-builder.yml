@@ -34,7 +34,7 @@ concurrency:
 jobs:
   build-ipa:
     name: Build Native Apple Silicon IPA via NXNative
-    runs-on: macos-14 # Apple Silicon M-series runner
+    runs-on: macos-15 # Apple Silicon M-series runner (macOS Sequoia)
     timeout-minutes: 180
 
     steps:
