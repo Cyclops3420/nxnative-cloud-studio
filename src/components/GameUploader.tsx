@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { UploadCloud, FileCode2, Trash2, CheckCircle, Info, Sparkles, Layers } from 'lucide-react';
+import { UploadCloud, FileCode2, Trash2, CheckCircle, Info, Sparkles, Layers, ArrowUpCircle, CheckCircle2, AlertCircle } from 'lucide-react';
 import { parseSwitchFileHeader, SwitchFileMetadata } from '@/lib/switch-parser';
 
 interface GameUploaderProps {
@@ -17,7 +17,72 @@ export const GameUploader: React.FC<GameUploaderProps> = ({
 }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<{ [filename: string]: number }>({});
+  const [uploadStatus, setUploadStatus] = useState<{ [filename: string]: 'idle' | 'uploading' | 'completed' | 'error' }>({});
+  const [uploadErrorMsg, setUploadErrorMsg] = useState<{ [filename: string]: string }>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleUploadToGitHub = async (file: File) => {
+    const filename = file.name;
+    setUploadStatus((prev) => ({ ...prev, [filename]: 'uploading' }));
+    setUploadProgress((prev) => ({ ...prev, [filename]: 0 }));
+    setUploadErrorMsg((prev) => ({ ...prev, [filename]: '' }));
+
+    try {
+      // 1. Get direct upload URL from serverless session
+      const sessionRes = await fetch('/api/github/upload-session', { method: 'POST' });
+      const sessionData = await sessionRes.json();
+
+      if (!sessionRes.ok) {
+        throw new Error(sessionData.error || 'Failed to initialize GitHub upload session');
+      }
+
+      const { uploadUrl, token } = sessionData;
+      const targetUrl = `${uploadUrl}?name=${encodeURIComponent(filename)}`;
+
+      // 2. Stream directly from Browser to uploads.github.com using XMLHttpRequest for real-time progress
+      await new Promise<void>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', targetUrl, true);
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+        xhr.setRequestHeader('Accept', 'application/vnd.github+json');
+        xhr.setRequestHeader('Content-Type', 'application/octet-stream');
+
+        xhr.upload.onprogress = (event) => {
+          if (event.lengthComputable) {
+            const percent = Math.round((event.loaded / event.total) * 100);
+            setUploadProgress((prev) => ({ ...prev, [filename]: percent }));
+          }
+        };
+
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            setUploadProgress((prev) => ({ ...prev, [filename]: 100 }));
+            setUploadStatus((prev) => ({ ...prev, [filename]: 'completed' }));
+            resolve();
+          } else {
+            let errorDetail = xhr.statusText;
+            try {
+              const parsed = JSON.parse(xhr.responseText);
+              if (parsed.message) errorDetail = parsed.message;
+            } catch (e) {}
+            reject(new Error(`GitHub upload failed (${xhr.status}): ${errorDetail}`));
+          }
+        };
+
+        xhr.onerror = () => {
+          reject(new Error('Network error during direct upload to GitHub.'));
+        };
+
+        xhr.send(file);
+      });
+
+    } catch (err: any) {
+      console.error('Direct upload error:', err);
+      setUploadStatus((prev) => ({ ...prev, [filename]: 'error' }));
+      setUploadErrorMsg((prev) => ({ ...prev, [filename]: err.message || 'Upload failed' }));
+    }
+  };
 
   const handleFiles = async (fileList: FileList | File[]) => {
     setIsProcessing(true);
@@ -197,17 +262,56 @@ export const GameUploader: React.FC<GameUploaderProps> = ({
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => onRemoveFile(idx)}
-                  className="p-2 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors shrink-0"
-                  title="Remove file"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
+                <div className="flex items-center gap-2 shrink-0">
+                  {/* Upload to GitHub button with progress */}
+                  {uploadStatus[file.name] === 'completed' ? (
+                    <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-emerald-500/10 text-emerald-300 border border-emerald-500/30">
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span>Ready on GitHub</span>
+                    </span>
+                  ) : uploadStatus[file.name] === 'uploading' ? (
+                    <div className="flex flex-col items-end gap-1">
+                      <span className="text-xs font-mono text-blue-400 font-semibold">
+                        {uploadProgress[file.name] || 0}%
+                      </span>
+                      <div className="w-24 bg-gray-800 rounded-full h-1.5 overflow-hidden">
+                        <div
+                          className="bg-gradient-to-r from-blue-500 to-indigo-500 h-1.5 rounded-full transition-all"
+                          style={{ width: `${uploadProgress[file.name] || 0}%` }}
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => handleUploadToGitHub(file)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-md transition-all cursor-pointer"
+                    >
+                      <ArrowUpCircle className="w-3.5 h-3.5" />
+                      <span>Upload to GitHub</span>
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => onRemoveFile(idx)}
+                    className="p-2 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                    title="Remove file"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Global Error Banner */}
+      {Object.values(uploadErrorMsg).some((m) => !!m) && (
+        <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-xs text-red-300 flex items-start gap-2">
+          <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+          <span>{Object.values(uploadErrorMsg).filter(Boolean).join(' • ')}</span>
         </div>
       )}
     </div>

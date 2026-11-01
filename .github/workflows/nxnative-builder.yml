@@ -110,11 +110,17 @@ jobs:
           fi
 
       - name: Prepare Game Workspace
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           mkdir -p "$HOME/Games/Input"
           mkdir -p "$GITHUB_WORKSPACE/output"
 
-          # Check if games are stored in repo directory
+          # 1. Check if games are attached to the 'game-inputs' release
+          echo "Checking GitHub Release 'game-inputs' for uploaded games..."
+          gh release download game-inputs --dir "$HOME/Games/Input" --clobber || true
+
+          # 2. Check if games are stored in repo directory
           if [ -d "./games" ] && [ "$(ls -A ./games 2>/dev/null)" ]; then
             echo "Found game files in ./games directory. Copying..."
             cp -r ./games/* "$HOME/Games/Input/"
