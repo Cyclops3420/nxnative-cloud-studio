@@ -79,6 +79,7 @@ export const GitHubActionsBuilder: React.FC<GitHubActionsBuilderProps> = ({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          prodKeys: keysResult?.rawText,
           inputs: {
             app_name: config.appName,
             bundle_id: config.bundleId,

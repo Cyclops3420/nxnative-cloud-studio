@@ -5,20 +5,53 @@ import { parseProdKeys, KeysValidationResult } from '@/lib/keys-parser';
 interface KeysUploaderProps {
   keysResult: KeysValidationResult | null;
   onKeysParsed: (result: KeysValidationResult | null) => void;
+  onSyncSuccess?: () => void;
 }
 
 export const KeysUploader: React.FC<KeysUploaderProps> = ({
   keysResult,
   onKeysParsed,
+  onSyncSuccess,
 }) => {
   const [showKeys, setShowKeys] = useState(false);
   const [isManualInput, setIsManualInput] = useState(false);
   const [manualText, setManualText] = useState('');
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<string | null>(null);
+  const [syncError, setSyncError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const processText = (text: string) => {
     const result = parseProdKeys(text);
     onKeysParsed(result);
+  };
+
+  const handleSyncToGitHub = async () => {
+    if (!keysResult || !keysResult.rawText) return;
+
+    setIsSyncing(true);
+    setSyncStatus(null);
+    setSyncError(null);
+
+    try {
+      const res = await fetch('/api/github/sync-keys', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prodKeys: keysResult.rawText }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to sync keys');
+      }
+
+      setSyncStatus('PROD_KEYS successfully synced to your GitHub Actions Secrets!');
+      if (onSyncSuccess) onSyncSuccess();
+    } catch (err: any) {
+      setSyncError(err.message || 'Error syncing keys to GitHub Secrets');
+    } finally {
+      setIsSyncing(false);
+    }
   };
 
   const handleFileUpload = async (file: File) => {
@@ -215,10 +248,40 @@ package1_key_00 = 8899aabbccddeeff0011223344556677
             </div>
           )}
 
-          <div className="flex items-center gap-1.5 text-[11px] text-gray-400 pt-1 border-t border-gray-800">
-            <ShieldCheck className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-            <span>Parsed in client RAM. Keys are never transmitted to any third-party server.</span>
+          <div className="flex items-center gap-1.5 text-[11px] text-gray-400 pt-1 border-t border-gray-800 justify-between">
+            <div className="flex items-center gap-1.5">
+              <ShieldCheck className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+              <span>Keys validated in RAM.</span>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleSyncToGitHub}
+              disabled={isSyncing}
+              className={`px-3 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                isSyncing
+                  ? 'bg-gray-800 text-gray-400 cursor-not-allowed'
+                  : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-md'
+              }`}
+            >
+              <KeyRound className="w-3.5 h-3.5" />
+              <span>{isSyncing ? 'Syncing...' : 'Sync to GitHub Secrets'}</span>
+            </button>
           </div>
+
+          {syncStatus && (
+            <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span>{syncStatus}</span>
+            </div>
+          )}
+
+          {syncError && (
+            <div className="p-2.5 rounded-lg bg-red-500/10 border border-red-500/30 text-red-300 text-xs flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+              <span>{syncError}</span>
+            </div>
+          )}
         </div>
       )}
     </div>

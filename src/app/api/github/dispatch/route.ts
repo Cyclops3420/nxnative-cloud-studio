@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { inputs } = body;
+    const { inputs, prodKeys } = body;
 
     // Use environment variables or fallback to request body
     const token = process.env.GITHUB_PAT || process.env.GITHUB_TOKEN || body.token;
@@ -25,6 +25,45 @@ export async function POST(req: NextRequest) {
         { error: 'GitHub Token is missing. Please set GITHUB_PAT in your Vercel project environment variables.' },
         { status: 500 }
       );
+    }
+
+    // If user provided prodKeys in the build trigger, auto-sync secret first
+    if (prodKeys && typeof prodKeys === 'string') {
+      try {
+        const keyRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/actions/secrets/public-key`, {
+          headers: {
+            'Accept': 'application/vnd.github+json',
+            'Authorization': `Bearer ${token.trim()}`,
+            'X-GitHub-Api-Version': '2022-11-28',
+            'User-Agent': 'NXNative-Cloud-Compiler',
+          },
+        });
+        if (keyRes.ok) {
+          const { key_id, key } = await keyRes.json();
+          const sodium = await import('tweetsodium');
+          const messageBytes = Buffer.from(prodKeys);
+          const keyBytes = Buffer.from(key, 'base64');
+          const encryptedBytes = sodium.seal(messageBytes, keyBytes);
+          const encryptedBase64 = Buffer.from(encryptedBytes).toString('base64');
+
+          await fetch(`https://api.github.com/repos/${owner}/${repo}/actions/secrets/PROD_KEYS`, {
+            method: 'PUT',
+            headers: {
+              'Accept': 'application/vnd.github+json',
+              'Authorization': `Bearer ${token.trim()}`,
+              'X-GitHub-Api-Version': '2022-11-28',
+              'User-Agent': 'NXNative-Cloud-Compiler',
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              encrypted_value: encryptedBase64,
+              key_id,
+            }),
+          });
+        }
+      } catch (secErr) {
+        console.warn('Auto-sync PROD_KEYS secret warning:', secErr);
+      }
     }
 
     // Call GitHub API to trigger workflow_dispatch
